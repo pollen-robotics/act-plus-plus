@@ -144,6 +144,6 @@ class PollenEnv:
         )
 
 
-def make_pollen_env():
-    env = PollenEnv()
+def make_pollen_env(ip="localhost"):
+    env = PollenEnv(ip=ip)
     return env

@@ -21,14 +21,8 @@ from pollen.env import make_pollen_env
 from sim_env import BOX_POSE
 from utils import calibrate_linear_vel  # robot functions; helper functions
 from utils import load_data  # data functions
-from utils import (
-    compute_dict_mean,
-    detach_dict,
-    postprocess_base_action,
-    sample_box_pose,
-    sample_insertion_pose,
-    set_seed,
-)
+from utils import (compute_dict_mean, detach_dict, postprocess_base_action,
+                   sample_box_pose, sample_insertion_pose, set_seed)
 from visualize_episodes import save_videos
 
 e = IPython.embed
