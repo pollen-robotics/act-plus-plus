@@ -1,3 +1,7 @@
+pollen/__pycache__/*
+pollen/episodes/*
+pollen/trainings/*
+
 bin
 logs
 wandb
