@@ -57,7 +57,6 @@ def main(args):
     validate_every = args["validate_every"]
     save_every = args["save_every"]
     resume_ckpt_path = args["resume_ckpt_path"]
-
     env = make_pollen_env()
 
     # get task parameters
@@ -175,7 +174,7 @@ def main(args):
         results = []
         for ckpt_name in ckpt_names:
             success_rate, avg_return = eval_bc(
-                config, ckpt_name, save_episode=True, num_rollouts=10
+                config, ckpt_name, save_episode=True, num_rollouts=10, env=env
             )
             # wandb.log({'success_rate': success_rate, 'avg_return': avg_return})
             results.append([ckpt_name, success_rate, avg_return])
@@ -205,7 +204,7 @@ def main(args):
     with open(stats_path, "wb") as f:
         pickle.dump(stats, f)
 
-    best_ckpt_info = train_bc(train_dataloader, val_dataloader, config)
+    best_ckpt_info = train_bc(train_dataloader, val_dataloader, config, env=env)
     best_step, min_val_loss, best_state_dict = best_ckpt_info
 
     # save best checkpoint
@@ -268,7 +267,7 @@ def get_image(ts, camera_names, rand_crop_resize=False):
     return curr_image
 
 
-def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
+def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50, env=None):
     set_seed(1000)
     ckpt_dir = config["ckpt_dir"]
     state_dim = config["state_dim"]
@@ -346,11 +345,11 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
         # from aloha_scripts.real_env import make_real_env  # requires aloha
         # from aloha_scripts.robot_utils import move_grippers  # requires aloha
         env_max_reward = 0
-    else:
-        from sim_env import make_sim_env
+    # else:
+    #     from sim_env import make_sim_env
 
-        env = make_sim_env(task_name)
-        env_max_reward = env.task.max_reward
+    #     env = make_sim_env(task_name)
+    #     env_max_reward = env.task.max_reward
 
     query_frequency = policy_config["num_queries"]
     if temporal_agg:
@@ -628,7 +627,7 @@ def forward_pass(data, policy):
     return policy(qpos_data, image_data, action_data, is_pad)  # TODO remove None
 
 
-def train_bc(train_dataloader, val_dataloader, config):
+def train_bc(train_dataloader, val_dataloader, config, env=None):
     num_steps = config["num_steps"]
     ckpt_dir = config["ckpt_dir"]
     seed = config["seed"]
@@ -698,7 +697,9 @@ def train_bc(train_dataloader, val_dataloader, config):
             ckpt_name = f"policy_step_{step}_seed_{seed}.ckpt"
             ckpt_path = os.path.join(ckpt_dir, ckpt_name)
             torch.save(policy.serialize(), ckpt_path)
-            success, _ = eval_bc(config, ckpt_name, save_episode=True, num_rollouts=2)
+            success, _ = eval_bc(
+                config, ckpt_name, save_episode=True, num_rollouts=2, env=env
+            )
             wandb.log({"success": success}, step=step)
 
         # training
