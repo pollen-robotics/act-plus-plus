@@ -21,8 +21,14 @@ from pollen.env import make_pollen_env
 from sim_env import BOX_POSE
 from utils import calibrate_linear_vel  # robot functions; helper functions
 from utils import load_data  # data functions
-from utils import (compute_dict_mean, detach_dict, postprocess_base_action,
-                   sample_box_pose, sample_insertion_pose, set_seed)
+from utils import (
+    compute_dict_mean,
+    detach_dict,
+    postprocess_base_action,
+    sample_box_pose,
+    sample_insertion_pose,
+    set_seed,
+)
 from visualize_episodes import save_videos
 
 e = IPython.embed
@@ -350,7 +356,8 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50, env=None):
         query_frequency = 1
         num_queries = policy_config["num_queries"]
     if real_robot:
-        BASE_DELAY = 13
+        BASE_DELAY = 1
+        # BASE_DELAY = 13
         query_frequency -= BASE_DELAY
 
     max_timesteps = int(max_timesteps * 1)  # may increase for real-world tasks
@@ -380,7 +387,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50, env=None):
         ### evaluation loop
         if temporal_agg:
             all_time_actions = torch.zeros(
-                [max_timesteps, max_timesteps + num_queries, 16]
+                [max_timesteps, max_timesteps + num_queries, 21]
             ).cuda()
 
         # qpos_history = torch.zeros((1, max_timesteps, state_dim)).cuda()
@@ -461,6 +468,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50, env=None):
                                 dim=2,
                             )
                     if temporal_agg:
+                        print(all_actions.shape)
                         all_time_actions[[t], t : t + num_queries] = all_actions
                         actions_for_curr_step = all_time_actions[:, t]
                         actions_populated = torch.all(
