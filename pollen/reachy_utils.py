@@ -1,11 +1,13 @@
-from reachy_sdk import ReachySDK
+import time
+
 import cv2
 import numpy as np
-import time
+from reachy_sdk import ReachySDK
+
 
 class ReachyWrapper:
     def __init__(self, ip):
-        self.reachy = ReachySDK(ip, with_mobile_base=True)
+        self.reachy = ReachySDK(ip)
         self.l_gripper_closed = False
         self.start_l_gripper_closed = time.time()
 
@@ -105,5 +107,7 @@ class ReachyWrapper:
 # if __name__ == "__main__":
 #     r = ReachyWrapper("192.168.1.162")
 #     while True:
+#         if r.l_gripper_closed_for() > 2.:
+#             print("CLOSED FOR 2 SECS")
 #         if r.l_gripper_closed_for() > 2.:
 #             print("CLOSED FOR 2 SECS")

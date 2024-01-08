@@ -1,3 +1,4 @@
+import argparse
 import os
 import time
 from glob import glob
@@ -5,11 +6,10 @@ from glob import glob
 import cv2
 import h5py
 import numpy as np
-import argparse
 from reachy_utils import ReachyWrapper
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ip", type=str, required=False, default="192.168.1.162", help="Ip of the robot")
+parser.add_argument("--ip", type=str, required=False, default="192.168.1.252", help="Ip of the robot")
 parser.add_argument("--taskName", type=str, required=True, help="Name of the task")
 parser.add_argument("--saveDir", type=str, required=True, help="Where to save the episodes")
 parser.add_argument("--nbEpisodesToRecord", type=int, required=True, help="How many episodes to record in this session")
@@ -43,13 +43,14 @@ reachy_wrapper = ReachyWrapper(args.ip)
 STATE = "IDLE" # Can be IDLE or RECORDING
 play_sound(0.5, 600) # Setup ready sound
 
+print("IDLE")
 while True:
     if STATE == "IDLE":
         if reachy_wrapper.l_gripper_closed_for() > 2.:
-            play_sound(0.2, 440) # Acknowledge input sound
-            STATE == "REC"
+            STATE = "REC"
 
     if STATE == "REC":
+        print("Starting to record")
         data_dict = {
             "/observations/qpos": [],
             "/observations/qvel": [],
@@ -65,6 +66,7 @@ while True:
         start = time.time()
         play_sound(1.0, 440) # Start recording sound
         prev_present_position = reachy_wrapper.get_present_positions()
+        elapsed = 0
         while elapsed < args.episodeLength:
             dt = time.time() - prev_t
             elapsed = time.time() - start
@@ -83,7 +85,7 @@ while True:
             time.sleep(1 / SAMPLING_RATE)
 
         nb_episodes = len(glob(os.path.join(path, "*.hdf5")))
-        episode_path = os.path.join(path, nb_episodes, ".hdf5")
+        episode_path = os.path.join(path, str(nb_episodes)+".hdf5")
         max_timesteps = len(data_dict["/action"])
 
         with h5py.File(episode_path,"w",rdcc_nbytes=1024**2 * 2,) as root:
@@ -107,13 +109,16 @@ while True:
             for name, array in data_dict.items():
                 root[name][...] = array
 
-        play_sound(1.5, 440) # Episode done sound
+        play_sound(0.5, 600) # Episode done
         print("Saved episode: ", episode_path)
         nb_episodes_recorded += 1
 
         if nb_episodes_recorded > args.nbEpisodesToRecord:
             break
         STATE = "IDLE"
+        print("IDLE")
 
 print("SESSION DONE")
-play_sound(2, 600)
+play_sound(0.2, 600)
+play_sound(0.2, 600)
+play_sound(0.2, 600)
