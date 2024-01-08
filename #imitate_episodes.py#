@@ -17,12 +17,18 @@ import wandb
 from constants import FPS, PUPPET_GRIPPER_JOINT_OPEN
 from detr.models.latent_model import Latent_Model_Transformer
 from policy import ACTPolicy, CNNMLPPolicy, DiffusionPolicy
-from pollen.env import make_pollen_env
+makefrom pollen.env import make_pollen_env
 from sim_env import BOX_POSE
 from utils import calibrate_linear_vel  # robot functions; helper functions
 from utils import load_data  # data functions
-from utils import (compute_dict_mean, detach_dict, postprocess_base_action,
-                   sample_box_pose, sample_insertion_pose, set_seed)
+from utils import (
+    compute_dict_mean,
+    detach_dict,
+    postprocess_base_action,
+    sample_box_pose,
+    sample_insertion_pose,
+    set_seed,
+)
 from visualize_episodes import save_videos
 
 e = IPython.embed
@@ -51,9 +57,7 @@ def main(args):
     validate_every = args["validate_every"]
     save_every = args["save_every"]
     resume_ckpt_path = args["resume_ckpt_path"]
-    #env = make_pollen_env("192.168.1.162")
-    #env = make_pollen_env("192.168.1.214")
-    env = None
+    env = make_pollen_env()
 
     # get task parameters
     is_sim = task_name[:4] == "sim_"
@@ -264,8 +268,6 @@ def get_image(ts, camera_names, rand_crop_resize=False):
 
 
 def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50, env=None):
-    if env is None:
-        return 0, 0
     set_seed(1000)
     ckpt_dir = config["ckpt_dir"]
     state_dim = config["state_dim"]
