@@ -1,3 +1,4 @@
+import os
 import time
 from glob import glob
 
@@ -5,6 +6,9 @@ import cv2
 import h5py
 import numpy as np
 from reachy_sdk import ReachySDK
+
+duration = 1  # seconds
+freq = 440  # Hz
 
 # reachy
 
@@ -96,80 +100,84 @@ def get_qvel(prev_qpos, qpos, dt):
 record_for = 10  # seconds
 # reachy = ReachySDK("localhost")
 reachy = ReachySDK("192.168.1.162")
+time.sleep(10)
+for i in range(10):
+    prev_qpos = get_present_positions()
 
+    data_dict = {
+        "/observations/qpos": [],
+        "/observations/qvel": [],
+        "/observations/effort": [],
+        "/observations/images/cam_head": [],
+        "/action": [],
+        "/base_action": [],
+    }
 
-prev_qpos = get_present_positions()
-
-data_dict = {
-    "/observations/qpos": [],
-    "/observations/qvel": [],
-    "/observations/effort": [],
-    "/observations/images/cam_head": [],
-    "/action": [],
-    "/base_action": [],
-}
-
-sampling_rate = 50  # Hz
-start = time.time()
-elapsed = time.time() - start
-dt = 0.0
-prev_t = start
-print("Recording ...")
-while elapsed < record_for:
-    dt = time.time() - prev_t
-
-    images = {}
-    images["cam_head"] = cv2.resize(reachy.right_camera.last_frame, (640, 480))
-
-    qpos = get_present_positions()
-    prev_qpos = qpos
-
-    # action = get_goal_positions() # TODO goal_positions are not updated.
-    action = get_present_positions()  # For now, we use present positions as action.
-
-    base_action = np.array([0, 0], np.float64)
-
-    data_dict["/action"].append(action)
-    data_dict["/base_action"].append(base_action)
-    data_dict["/observations/qpos"].append(qpos)
-    data_dict["/observations/qvel"].append(get_qvel(prev_qpos, qpos, dt))
-    data_dict["/observations/effort"].append(np.zeros((19,), dtype=np.float64))
-    data_dict["/observations/images/cam_head"].append(images["cam_head"])
-
-    prev_t = time.time()
-    time.sleep(1 / sampling_rate)
+    sampling_rate = 30  # Hz
+    start = time.time()
     elapsed = time.time() - start
+    dt = 0.0
+    prev_t = start
+    print("Recording ...")
+    time.sleep(2)
+    os.system("play -nq -t alsa synth {} sine {}".format(0.5, freq))
 
-print("Done recording")
-max_timesteps = len(data_dict["/action"])
+    while elapsed < record_for:
+        dt = time.time() - prev_t
 
-nb_files = len(glob("episodes/pollen_grab_bottle/*.hdf5"))
+        images = {}
+        images["cam_head"] = cv2.resize(reachy.right_camera.last_frame, (640, 480))
 
-t0 = time.time()
-with h5py.File(
-    "episodes/pollen_grab_bottle/" + str(nb_files) + ".hdf5",
-    "w",
-    rdcc_nbytes=1024**2 * 2,
-) as root:
-    root.attrs["sim"] = False
-    root.attrs["compress"] = False
-    obs = root.create_group("observations")
-    image = obs.create_group("images")
-    for cam_name in ["cam_head"]:
-        _ = image.create_dataset(
-            cam_name,
-            (max_timesteps, 480, 640, 3),
-            dtype="uint8",
-            chunks=(1, 480, 640, 3),
-        )
-    _ = obs.create_dataset("qpos", (max_timesteps, 19))
-    _ = obs.create_dataset("qvel", (max_timesteps, 19))
-    _ = obs.create_dataset("effort", (max_timesteps, 19))
-    _ = root.create_dataset("action", (max_timesteps, 19))
-    _ = root.create_dataset("base_action", (max_timesteps, 2))
-    # _ = root.create_dataset('base_action_t265', (max_timesteps, 2))
+        qpos = get_present_positions()
+        prev_qpos = qpos
 
-    for name, array in data_dict.items():
-        root[name][...] = array
-time.sleep(2)
-print("Saved in episodes/pollen_grab_bottle/" + str(nb_files) + ".hdf5")
+        # action = get_goal_positions() # TODO goal_positions are not updated.
+        action = get_present_positions()  # For now, we use present positions as action.
+
+        base_action = np.array([0, 0], np.float64)
+
+        data_dict["/action"].append(action)
+        data_dict["/base_action"].append(base_action)
+        data_dict["/observations/qpos"].append(qpos)
+        data_dict["/observations/qvel"].append(get_qvel(prev_qpos, qpos, dt))
+        data_dict["/observations/effort"].append(np.zeros((19,), dtype=np.float64))
+        data_dict["/observations/images/cam_head"].append(images["cam_head"])
+
+        prev_t = time.time()
+        time.sleep(1 / sampling_rate)
+        elapsed = time.time() - start
+
+    print("Done recording")
+    max_timesteps = len(data_dict["/action"])
+
+    nb_files = len(glob("episodes/pollen_grab_cube2/*.hdf5"))
+
+    t0 = time.time()
+    with h5py.File(
+        "episodes/pollen_grab_cube2/" + str(nb_files) + ".hdf5",
+        "w",
+        rdcc_nbytes=1024**2 * 2,
+    ) as root:
+        root.attrs["sim"] = False
+        root.attrs["compress"] = False
+        obs = root.create_group("observations")
+        image = obs.create_group("images")
+        for cam_name in ["cam_head"]:
+            _ = image.create_dataset(
+                cam_name,
+                (max_timesteps, 480, 640, 3),
+                dtype="uint8",
+                chunks=(1, 480, 640, 3),
+            )
+        _ = obs.create_dataset("qpos", (max_timesteps, 19))
+        _ = obs.create_dataset("qvel", (max_timesteps, 19))
+        _ = obs.create_dataset("effort", (max_timesteps, 19))
+        _ = root.create_dataset("action", (max_timesteps, 19))
+        _ = root.create_dataset("base_action", (max_timesteps, 2))
+        # _ = root.create_dataset('base_action_t265', (max_timesteps, 2))
+
+        for name, array in data_dict.items():
+            root[name][...] = array
+    time.sleep(2)
+    print("Saved in episodes/pollen_grab_cube2/" + str(nb_files) + ".hdf5")
+    os.system("play -nq -t alsa synth {} sine {}".format(duration, freq))

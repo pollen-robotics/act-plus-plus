@@ -77,9 +77,13 @@ class PollenEnv:
         self.reachy.r_arm.r_wrist_roll.goal_position = right_action[6]
         self.reachy.r_arm.r_gripper.goal_position = right_action[7]
 
-        self.reachy.head.neck_roll.goal_position = neck_action[0]
-        self.reachy.head.neck_pitch.goal_position = neck_action[1]
-        self.reachy.head.neck_yaw.goal_position = neck_action[2]
+        # self.reachy.head.neck_roll.goal_position = neck_action[0]
+        self.reachy.head.neck_pitch.goal_position = 45
+        # self.reachy.head.neck_yaw.goal_position = neck_action[2]
+
+        # self.reachy.head.neck_roll.goal_position = neck_action[0]
+        # self.reachy.head.neck_pitch.goal_position = neck_action[1]
+        # self.reachy.head.neck_yaw.goal_position = neck_action[2]
 
     def get_qvel(self, qpos, dt):
         return np.array((qpos - self.prev_qpos) / dt, dtype=np.float64)
