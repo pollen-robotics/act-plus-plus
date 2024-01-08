@@ -5,10 +5,21 @@ from glob import glob
 import cv2
 import h5py
 import numpy as np
-from reachy_sdk import ReachySDK
+import argparse
+from reachy_utils import ReachyWrapper
 
-duration = 1  # seconds
-freq = 440  # Hz
+parser = argparse.ArgumentParser()
+parser.add_argument("--ip", type=str, required=False, default="192.168.1.162", help="Ip of the robot")
+parser.add_argument("--taskName", type=str, required=True, help="Name of the task")
+parser.add_argument("--saveDir", type=str, required=True, help="Where to save the episodes")
+parser.add_argument("--nbEpisodesToRecord", type=int, required=True, help="How many episodes to record in this session")
+parser.add_argument("--episodeLength", type=int, required=True, help="How many seconds per episode")
+args = parser.parse_args()
+
+SAMPLING_RATE = 30 # Hz
+
+path = os.path.join(args.saveDir, args.taskName)
+os.makedirs(path, exist_ok=True)
 
 # reachy
 
@@ -23,161 +34,86 @@ freq = 440  # Hz
 # action       (19,)         'float64' -> position of master -> goal_position
 # base_action  (2,)          'float64' -> 2d vector
 
-
-# returns goal_positions, present_positions
-def get_goal_positions():
-    goal_positions = []
-    l_arm_goal_pos = []
-    l_arm_goal_pos.append(reachy.l_arm.l_shoulder_pitch.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_shoulder_roll.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_arm_yaw.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_elbow_pitch.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_forearm_yaw.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_wrist_pitch.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_wrist_roll.goal_position)
-    l_arm_goal_pos.append(reachy.l_arm.l_gripper.goal_position)
-
-    r_arm_goal_pos = []
-    r_arm_goal_pos.append(reachy.r_arm.r_shoulder_pitch.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_shoulder_roll.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_arm_yaw.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_elbow_pitch.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_forearm_yaw.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_wrist_pitch.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_wrist_roll.goal_position)
-    r_arm_goal_pos.append(reachy.r_arm.r_gripper.goal_position)
-
-    neck_goal_pos = []
-    neck_goal_pos.append(reachy.head.neck_roll.goal_position)
-    neck_goal_pos.append(reachy.head.neck_pitch.goal_position)
-    neck_goal_pos.append(reachy.head.neck_yaw.goal_position)
-
-    goal_positions.extend(l_arm_goal_pos)
-    goal_positions.extend(r_arm_goal_pos)
-    goal_positions.extend(neck_goal_pos)
-
-    return np.array(goal_positions, dtype=np.float64)
-
-
-def get_present_positions():
-    present_positions = []
-    l_arm_present_pos = []
-    l_arm_present_pos.append(reachy.l_arm.l_shoulder_pitch.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_shoulder_roll.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_arm_yaw.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_elbow_pitch.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_forearm_yaw.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_wrist_pitch.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_wrist_roll.present_position)
-    l_arm_present_pos.append(reachy.l_arm.l_gripper.present_position)
-
-    r_arm_present_pos = []
-    r_arm_present_pos.append(reachy.r_arm.r_shoulder_pitch.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_shoulder_roll.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_arm_yaw.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_elbow_pitch.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_forearm_yaw.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_wrist_pitch.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_wrist_roll.present_position)
-    r_arm_present_pos.append(reachy.r_arm.r_gripper.present_position)
-
-    neck_present_pos = []
-    neck_present_pos.append(reachy.head.neck_roll.present_position)
-    neck_present_pos.append(reachy.head.neck_pitch.present_position)
-    neck_present_pos.append(reachy.head.neck_yaw.present_position)
-
-    present_positions.extend(l_arm_present_pos)
-    present_positions.extend(r_arm_present_pos)
-    present_positions.extend(neck_present_pos)
-
-    return np.array(present_positions, dtype=np.float64)
-
-
-def get_qvel(prev_qpos, qpos, dt):
-    return np.array((qpos - prev_qpos) / dt, dtype=np.float64)
-
-
-record_for = 10  # seconds
-# reachy = ReachySDK("localhost")
-reachy = ReachySDK("192.168.1.162")
-time.sleep(10)
-for i in range(10):
-    prev_qpos = get_present_positions()
-
-    data_dict = {
-        "/observations/qpos": [],
-        "/observations/qvel": [],
-        "/observations/effort": [],
-        "/observations/images/cam_head": [],
-        "/action": [],
-        "/base_action": [],
-    }
-
-    sampling_rate = 30  # Hz
-    start = time.time()
-    elapsed = time.time() - start
-    dt = 0.0
-    prev_t = start
-    print("Recording ...")
-    time.sleep(2)
-    os.system("play -nq -t alsa synth {} sine {}".format(0.5, freq))
-
-    while elapsed < record_for:
-        dt = time.time() - prev_t
-
-        images = {}
-        images["cam_head"] = cv2.resize(reachy.right_camera.last_frame, (640, 480))
-
-        qpos = get_present_positions()
-        prev_qpos = qpos
-
-        # action = get_goal_positions() # TODO goal_positions are not updated.
-        action = get_present_positions()  # For now, we use present positions as action.
-
-        base_action = np.array([0, 0], np.float64)
-
-        data_dict["/action"].append(action)
-        data_dict["/base_action"].append(base_action)
-        data_dict["/observations/qpos"].append(qpos)
-        data_dict["/observations/qvel"].append(get_qvel(prev_qpos, qpos, dt))
-        data_dict["/observations/effort"].append(np.zeros((19,), dtype=np.float64))
-        data_dict["/observations/images/cam_head"].append(images["cam_head"])
-
-        prev_t = time.time()
-        time.sleep(1 / sampling_rate)
-        elapsed = time.time() - start
-
-    print("Done recording")
-    max_timesteps = len(data_dict["/action"])
-
-    nb_files = len(glob("episodes/pollen_grab_cube2/*.hdf5"))
-
-    t0 = time.time()
-    with h5py.File(
-        "episodes/pollen_grab_cube2/" + str(nb_files) + ".hdf5",
-        "w",
-        rdcc_nbytes=1024**2 * 2,
-    ) as root:
-        root.attrs["sim"] = False
-        root.attrs["compress"] = False
-        obs = root.create_group("observations")
-        image = obs.create_group("images")
-        for cam_name in ["cam_head"]:
-            _ = image.create_dataset(
-                cam_name,
-                (max_timesteps, 480, 640, 3),
-                dtype="uint8",
-                chunks=(1, 480, 640, 3),
-            )
-        _ = obs.create_dataset("qpos", (max_timesteps, 19))
-        _ = obs.create_dataset("qvel", (max_timesteps, 19))
-        _ = obs.create_dataset("effort", (max_timesteps, 19))
-        _ = root.create_dataset("action", (max_timesteps, 19))
-        _ = root.create_dataset("base_action", (max_timesteps, 2))
-        # _ = root.create_dataset('base_action_t265', (max_timesteps, 2))
-
-        for name, array in data_dict.items():
-            root[name][...] = array
-    time.sleep(2)
-    print("Saved in episodes/pollen_grab_cube2/" + str(nb_files) + ".hdf5")
+def play_sound(duration, freq):
     os.system("play -nq -t alsa synth {} sine {}".format(duration, freq))
+
+
+nb_episodes_recorded = 0
+reachy_wrapper = ReachyWrapper(args.ip)
+STATE = "IDLE" # Can be IDLE or RECORDING
+play_sound(0.5, 600) # Setup ready sound
+
+while True:
+    if STATE == "IDLE":
+        if reachy_wrapper.l_gripper_closed_for() > 2.:
+            play_sound(0.2, 440) # Acknowledge input sound
+            STATE == "REC"
+
+    if STATE == "REC":
+        data_dict = {
+            "/observations/qpos": [],
+            "/observations/qvel": [],
+            "/observations/effort": [],
+            "/observations/images/cam_head": [],
+            "/action": [],
+            "/base_action": [],
+        }
+
+        time.sleep(1)
+        dt = 0
+        prev_t = time.time()
+        start = time.time()
+        play_sound(1.0, 440) # Start recording sound
+        prev_present_position = reachy_wrapper.get_present_positions()
+        while elapsed < args.episodeLength:
+            dt = time.time() - prev_t
+            elapsed = time.time() - start
+
+            present_position = reachy_wrapper.get_present_positions()
+            data_dict["/action"].append(present_position) # For now present_position = goal_position
+            data_dict["/base_action"].append(np.array([0, 0], np.float64)) # We don't record mobile base action for now
+            data_dict["/observations/qpos"].append(present_position)
+            data_dict["/observations/qvel"].append(reachy_wrapper.get_qvel(prev_present_position, present_position, dt))
+            data_dict["/observations/effort"].append(np.zeros((19,), dtype=np.float64))
+            data_dict["/observations/images/cam_head"].append(reachy_wrapper.get_image())
+
+            prev_present_position = present_position
+
+            prev_t = time.time()
+            time.sleep(1 / SAMPLING_RATE)
+
+        nb_episodes = len(glob(os.path.join(path, "*.hdf5")))
+        episode_path = os.path.join(path, nb_episodes, ".hdf5")
+        max_timesteps = len(data_dict["/action"])
+
+        with h5py.File(episode_path,"w",rdcc_nbytes=1024**2 * 2,) as root:
+            root.attrs["sim"] = False
+            root.attrs["compress"] = False
+            obs = root.create_group("observations")
+            image = obs.create_group("images")
+            for cam_name in ["cam_head"]:
+                _ = image.create_dataset(
+                    cam_name,
+                    (max_timesteps, 480, 640, 3),
+                    dtype="uint8",
+                    chunks=(1, 480, 640, 3),
+                )
+            _ = obs.create_dataset("qpos", (max_timesteps, 19))
+            _ = obs.create_dataset("qvel", (max_timesteps, 19))
+            _ = obs.create_dataset("effort", (max_timesteps, 19))
+            _ = root.create_dataset("action", (max_timesteps, 19))
+            _ = root.create_dataset("base_action", (max_timesteps, 2))
+
+            for name, array in data_dict.items():
+                root[name][...] = array
+
+        play_sound(1.5, 440) # Episode done sound
+        print("Saved episode: ", episode_path)
+        nb_episodes_recorded += 1
+
+        if nb_episodes_recorded > args.nbEpisodesToRecord:
+            break
+        STATE = "IDLE"
+
+print("SESSION DONE")
+play_sound(2, 600)
